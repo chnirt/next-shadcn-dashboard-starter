@@ -113,13 +113,13 @@ jobs:
         with:
           name: build-output
           path: .next
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
-          name: Release ${{ github.event.inputs.tag || github.ref_name }}
-          body_path: CHANGELOG.md
-          files: |
-            .next/**
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Create GitHub Release
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+      #     name: Release ${{ github.event.inputs.tag || github.ref_name }}
+      #     body_path: CHANGELOG.md
+      #     files: |
+      #       .next/**
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
