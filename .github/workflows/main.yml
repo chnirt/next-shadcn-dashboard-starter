@@ -22,11 +22,11 @@ jobs:
       - run: npm install -g pnpm
       - run: pnpm install
       - run: pnpm build
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-output
-          path: .next
+      # - name: Upload build artifacts
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: build-output
+      #     path: .next
 
   docs:
     name: Generate & Update Docs
@@ -55,22 +55,29 @@ jobs:
 
       - name: Collect git diff
         run: |
-          git log ${{ env.prev_tag }}..HEAD --pretty=format:'%h %s' > commits.txt
-          echo "diff=$(cat commits.txt)" >> $GITHUB_ENV
+          echo "diff<<EOF" >> $GITHUB_ENV
+          git log ${{ env.prev_tag }}..HEAD --pretty=format:'%h %s' >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
       - name: Generate Release Notes with OpenAI
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           PROMPT="You are an expert solution architect. Generate release notes for these commits:\n${{ env.diff }}\nClassify as patch/minor/major. Mention API/logic changes if any."
-          RESPONSE=$(curl https://api.openai.com/v1/chat/completions \
-            -s -H "Content-Type: application/json" \
+          RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
+            -H "Content-Type: application/json" \
             -H "Authorization: Bearer $OPENAI_API_KEY" \
             -d "{
               \"model\": \"gpt-4.1\",
               \"messages\": [{\"role\": \"user\", \"content\": \"$PROMPT\"}],
               \"temperature\": 0.2
             }" | jq -r '.choices[0].message.content')
+      
+          if [ -z "$RESPONSE" ] || [ "$RESPONSE" = "null" ]; then
+            echo "⚠️ No AI-generated notes, fallback to raw commits."
+            RESPONSE="${{ env.diff }}"
+          fi
+      
           echo "$RESPONSE" > release_notes.md
 
       - name: Update docs based on rules
@@ -108,11 +115,11 @@ jobs:
     needs: docs
     steps:
       - uses: actions/checkout@v4
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-output
-          path: .next
+      # - name: Download build artifacts
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: build-output
+      #     path: .next
       # - name: Create GitHub Release
       #   uses: softprops/action-gh-release@v2
       #   with:
