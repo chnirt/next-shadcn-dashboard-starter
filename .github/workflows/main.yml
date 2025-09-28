@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch: # Cho phép chạy tay để test
+    inputs:
+      tag:
+        description: "Tag version (e.g. v1.0.0)"
+        required: true
 
 jobs:
   build:
@@ -17,6 +22,11 @@ jobs:
       - run: npm install -g pnpm
       - run: pnpm install
       - run: pnpm build
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: .next
 
   docs:
     name: Generate & Update Docs
@@ -25,8 +35,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set VERSION
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION=${{ github.event.inputs.tag }}
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
       - name: Detect previous tag (if exists)
-        id: previoustag
         run: |
           prev_tag=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
           if [ -z "$prev_tag" ]; then
@@ -57,7 +75,7 @@ jobs:
 
       - name: Update docs based on rules
         run: |
-          VERSION=${GITHUB_REF#refs/tags/}
+          VERSION=${{ env.VERSION }}
           MAJOR_MINOR=$(echo $VERSION | cut -d. -f1,2)
           mkdir -p docs/release-notes docs/release-overview
 
@@ -80,11 +98,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-      
           git add CHANGELOG.md docs/
-          git commit -m "docs: update release notes for $VERSION" || echo "No changes to commit"
-      
-          # push commit từ HEAD sang branch cụ thể
+          git commit -m "docs: update release notes for ${{ env.VERSION }}" || echo "No changes to commit"
           git push origin HEAD:refs/heads/feature/test-release
 
   release:
@@ -93,11 +108,18 @@ jobs:
     needs: docs
     steps:
       - uses: actions/checkout@v4
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: .next
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: Release ${{ github.event.inputs.tag || github.ref_name }}
           body_path: CHANGELOG.md
+          files: |
+            .next/**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
