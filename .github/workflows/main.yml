@@ -64,12 +64,12 @@ jobs:
           # Always update changelog
           echo -e "\n## $VERSION\n$(cat release_notes.md)" >> CHANGELOG.md
 
-          # Rule: Major/Minor release -> new file
+          # Major/Minor release -> new file
           if [[ "$VERSION" =~ \.0$ ]]; then
             echo "$(cat release_notes.md)" > docs/release-notes/${VERSION}.md
           fi
 
-          # Rule: too many patches -> overview
+          # Summary for too many patches
           PATCH_COUNT=$(git tag --list "${MAJOR_MINOR}.*" | wc -l)
           if [ $PATCH_COUNT -ge 10 ]; then
             echo "Summary of $PATCH_COUNT patches under $MAJOR_MINOR.x" > docs/release-overview/${MAJOR_MINOR}.x.md
@@ -78,11 +78,17 @@ jobs:
 
       - name: Commit and push updated docs
         run: |
+          # Detect branch from tag
+          BRANCH_NAME=$(git for-each-ref --format='%(refname:short)' refs/tags/${GITHUB_REF_NAME}^{} | head -n1)
+          echo "Detected branch: $BRANCH_NAME"
+          git checkout $BRANCH_NAME
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
           git add CHANGELOG.md docs/
           git commit -m "docs: update release notes for $VERSION" || echo "No changes to commit"
-          git push origin $GITHUB_REF_NAME
+          git push origin $BRANCH_NAME
 
   release:
     name: Create GitHub Release
@@ -90,10 +96,11 @@ jobs:
     needs: docs
     steps:
       - uses: actions/checkout@v4
-      - uses: softprops/action-gh-release@v2
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          body_path: release_notes.md
-          files: |
-            .next/**
+          body_path: CHANGELOG.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
