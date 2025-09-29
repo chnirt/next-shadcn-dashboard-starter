@@ -80,26 +80,13 @@ jobs:
       
           echo "$RESPONSE" > release_notes.md
 
-      - name: Update docs based on rules
+      - name: Generate Release Notes
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AI_PROVIDER: gemini # hoặc openai
         run: |
-          VERSION=${{ env.VERSION }}
-          MAJOR_MINOR=$(echo $VERSION | cut -d. -f1,2)
-          mkdir -p docs/release-notes docs/release-overview
-
-          # Always update changelog
-          echo -e "\n## $VERSION\n$(cat release_notes.md)" >> CHANGELOG.md
-
-          # Major/Minor release -> new file
-          if [[ "$VERSION" =~ \.0$ ]]; then
-            echo "$(cat release_notes.md)" > docs/release-notes/${VERSION}.md
-          fi
-
-          # Summary for too many patches
-          PATCH_COUNT=$(git tag --list "${MAJOR_MINOR}.*" | wc -l)
-          if [ $PATCH_COUNT -ge 10 ]; then
-            echo "Summary of $PATCH_COUNT patches under $MAJOR_MINOR.x" > docs/release-overview/${MAJOR_MINOR}.x.md
-            cat CHANGELOG.md | grep "## ${MAJOR_MINOR}" -A 50 >> docs/release-overview/${MAJOR_MINOR}.x.md
-          fi
+          node ./scripts/generate_release_notes.js ${{ env.VERSION }}
 
       - name: Commit and push updated docs
         run: |
