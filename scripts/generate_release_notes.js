@@ -2,7 +2,6 @@
 
 const { execSync } = require('child_process');
 const fs = require('fs');
-const fetch = require('node-fetch');
 const path = require('path');
 
 // --- Config ---
