@@ -11,27 +11,60 @@ on:
         required: true
 
 jobs:
-  build:
-    name: Build Project
+  build-and-deploy:
+    name: Build & Deploy to Vercel
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install -g pnpm
-      - run: pnpm install
-      - run: pnpm build
-      # - name: Upload build artifacts
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: build-output
-      #     path: .next
+
+      - name: Install dependencies
+        run: |
+          npm install -g pnpm vercel
+          pnpm install
+
+      - name: Build project
+        run: pnpm build
+
+      - name: Deploy to Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${{ secrets.NEXT_PUBLIC_CLERK_SIGN_IN_URL }}
+          NEXT_PUBLIC_CLERK_SIGN_UP_URL: ${{ secrets.NEXT_PUBLIC_CLERK_SIGN_UP_URL }}
+          NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL: ${{ secrets.NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL }}
+          NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: ${{ secrets.NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL }}
+        run: |
+          # fallback default nếu secrets trống
+          export NEXT_PUBLIC_CLERK_SIGN_IN_URL=${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-"/auth/sign-in"}
+          export NEXT_PUBLIC_CLERK_SIGN_UP_URL=${NEXT_PUBLIC_CLERK_SIGN_UP_URL:-"/auth/sign-up"}
+          export NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=${NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL:-"/dashboard/overview"}
+          export NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=${NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL:-"/dashboard/overview"}
+      
+          vercel deploy --prebuilt --prod \
+            --token $VERCEL_TOKEN \
+            --confirm \
+            --project $VERCEL_PROJECT_ID \
+            --team $VERCEL_TEAM_ID \
+            -e NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY \
+            -e CLERK_SECRET_KEY=$CLERK_SECRET_KEY \
+            -e NEXT_PUBLIC_CLERK_SIGN_IN_URL=$NEXT_PUBLIC_CLERK_SIGN_IN_URL \
+            -e NEXT_PUBLIC_CLERK_SIGN_UP_URL=$NEXT_PUBLIC_CLERK_SIGN_UP_URL \
+            -e NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=$NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL \
+            -e NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=$NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL
 
   docs:
     name: Generate & Update Docs
     runs-on: ubuntu-latest
-    needs: build
+    needs: build-and-deploy
     steps:
       - uses: actions/checkout@v4
 
@@ -95,25 +128,3 @@ jobs:
           git add CHANGELOG.md docs/
           git commit -m "docs: update release notes for ${{ env.VERSION }}" || echo "No changes to commit"
           git push origin HEAD:refs/heads/feature/test-release --force
-
-  release:
-    name: Create GitHub Release
-    runs-on: ubuntu-latest
-    needs: docs
-    steps:
-      - uses: actions/checkout@v4
-      # - name: Download build artifacts
-      #   uses: actions/download-artifact@v4
-      #   with:
-      #     name: build-output
-      #     path: .next
-      # - name: Create GitHub Release
-      #   uses: softprops/action-gh-release@v2
-      #   with:
-      #     tag_name: ${{ github.event.inputs.tag || github.ref_name }}
-      #     name: Release ${{ github.event.inputs.tag || github.ref_name }}
-      #     body_path: CHANGELOG.md
-      #     files: |
-      #       .next/**
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
